@@ -2,8 +2,6 @@
 
 A Python tool that pulls financial market data from Yahoo Finance, cleans it automatically, and exports a formatted multi-sheet Excel report.
 
-Built as a self-directed project to demonstrate data pipeline and financial analysis skills.
-
 ---
 
 ## What it does
@@ -23,13 +21,13 @@ Built as a self-directed project to demonstrate data pipeline and financial anal
 pip install yfinance pandas numpy openpyxl
 ```
 
-### 2. Configure (optional)
+### 2. Configure
 
 Open `analyser_fixed.py` and edit the config block at the top:
 
 ```python
 TICKERS     = ["^GSPC", "AAPL", "MSFT", "NVDA", "AMD"]  # Any valid Yahoo Finance tickers
-START_DATE  = "2024-01-01"
+START_DATE  = "2024-01-01" # Adjust dates for your requirements
 END_DATE    = "2026-05-31"
 INTERVAL    = "1mo"   # 1d, 1wk, 1mo
 OUTPUT_FILE = "Financial_Data_Report.xlsx"
@@ -100,12 +98,4 @@ For each OHLCV column, computes the z-score of every observation. Values more th
 | `openpyxl` | Excel workbook creation and formatting |
 
 ---
-
-## Project structure
-
-```
-.
-├── analyser_fixed.py       # Main script
-├── Financial_Data_Report.xlsx  # Output (generated on run)
-└── README.md               # This file
-```
+Still in the process of being updated- to make the excel workbook tidier
