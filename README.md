@@ -9,7 +9,7 @@ A Python tool that pulls financial market data from Yahoo Finance, cleans it aut
 1. Downloads monthly OHLCV (Open, High, Low, Close, Volume) data for a configurable set of tickers via `yfinance`
 2. Runs an automated cleaning and validation pipeline on each series
 3. Computes derived metrics — normalised price, returns, log returns, moving averages
-4. Exports a formatted Excel workbook with four sheets: raw data, cleaned data, summary statistics, and a cleaning change log
+4. Exports a formatted Excel workbook with ffive sheets: raw data, cleaned data, summary statistics, charts and a cleaning change log
 
 ---
 
