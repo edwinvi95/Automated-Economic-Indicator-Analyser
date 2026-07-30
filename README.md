@@ -26,7 +26,7 @@ pip install yfinance pandas numpy openpyxl
 
 ### 2. Configure
 
-Edit the config block at the top of `analyser.py`:
+Edit the config block at the top:
 
 ```python
 TICKERS     = ["^GSPC", "AAPL", "MSFT", "NVDA", "AMD"]  # any valid Yahoo Finance tickers
@@ -139,11 +139,3 @@ Month-by-month percentage decline from each asset's previous peak. Max drawdown 
 
 ---
 
-## Project structure
-
-```
-.
-├── analyser.py                  # Main script
-├── Financial_Data_Report.xlsx   # Output (generated on run)
-└── README.md                    # This file
-```
