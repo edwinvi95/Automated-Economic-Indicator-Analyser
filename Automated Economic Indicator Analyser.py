@@ -8,28 +8,26 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-# ─────────────────────────────────────────────
-# CONFIG
-# ─────────────────────────────────────────────
+# CONFIG─────────────────────────────────────────────
+
 TICKERS     = ["^GSPC", "AAPL", "MSFT", "NVDA", "AMD", "TSLA"]
 START_DATE  = "2025-01-01"
 END_DATE    = "2026-06-30"
 INTERVAL    = "1mo"
 OUTPUT_FILE = "Financial_Data_Report.xlsx"
 
-# ─────────────────────────────────────────────
-# LOGGING  (FIX 1: set up once, at the top, before any work)
-# ─────────────────────────────────────────────
+
+# LOGGING─────────────────────────────────────────────
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)s  %(message)s",
-    datefmt="%H:%M:%S",
-)
+    datefmt="%H:%M:%S",)
 log = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────
-# 1. DOWNLOAD
-# ─────────────────────────────────────────────
+
+# 1. DOWNLOAD─────────────────────────────────────────────
+
 log.info("Downloading market data for %s ...", TICKERS)
 
 try:
@@ -40,8 +38,7 @@ try:
         interval=INTERVAL,
         auto_adjust=False,
         group_by="ticker",
-        progress=False,
-    )
+        progress=False,)
 except Exception as e:
     log.error("Download failed: %s", e)
     sys.exit(1)
@@ -58,9 +55,9 @@ if not ticker_dfs:
     log.error("No data retrieved. Exiting.")
     sys.exit(1)
 
-# ─────────────────────────────────────────────
-# 2. CLEANING
-# ─────────────────────────────────────────────
+
+# 2. CLEANING─────────────────────────────────────────────
+
 log.info("Cleaning data ...")
 
 def clean_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
@@ -86,8 +83,7 @@ def clean_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
         (df["low"]  > df["open"])  |
         (df["low"]  > df["close"]) |
         (df["high"] < df["low"])   |
-        (df["volume"] < 0)
-    )
+        (df["volume"] < 0))
 
     # 6. Outlier detection (z-score > 3)
     for col in ["open", "high", "low", "close", "volume"]:
@@ -117,19 +113,17 @@ def full_pipeline(df: pd.DataFrame) -> pd.DataFrame:
 
 
 ticker_dfs_clean: dict[str, pd.DataFrame] = {
-    ticker: full_pipeline(df) for ticker, df in ticker_dfs.items()
-}
+    ticker: full_pipeline(df) for ticker, df in ticker_dfs.items()}
 
 # Aligned normalised close (used for cross-asset comparison)
 aligned = (
     pd.concat([df["close_norm"] for df in ticker_dfs_clean.values()], axis=1)
     .set_axis(list(ticker_dfs_clean.keys()), axis=1)
-    .ffill()
-)
+    .ffill())
 
-# ─────────────────────────────────────────────
-# 3. ANALYTICS
-# ─────────────────────────────────────────────
+
+# 3. ANALYTICS─────────────────────────────────────────────
+
 log.info("Running analytics ...")
 
 RISK_FREE_RATE = 0.05          # annualised — approximate US risk-free rate
@@ -151,7 +145,7 @@ def compute_analytics(ticker_dfs_clean: dict, rf: float, periods: int) -> dict:
         axis=1
     ).set_axis(list(ticker_dfs_clean.keys()), axis=1)
 
-    # ── Rolling Sharpe (6-month window) ──────────────────────────────────────
+    # Rolling Sharpe (6-month window) ──────────────────────────────────────
     rf_per_period = rf / periods
     excess = returns - rf_per_period
 
@@ -159,7 +153,7 @@ def compute_analytics(ticker_dfs_clean: dict, rf: float, periods: int) -> dict:
         excess.rolling(6).mean() / returns.rolling(6).std()
     ) * np.sqrt(periods)
 
-    # ── Drawdown ─────────────────────────────────────────────────────────────
+    # Drawdown ─────────────────────────────────────────────────────────────
     close_prices = pd.concat(
         [df["close"] for df in ticker_dfs_clean.values()],
         axis=1
@@ -168,7 +162,7 @@ def compute_analytics(ticker_dfs_clean: dict, rf: float, periods: int) -> dict:
     rolling_max = close_prices.cummax()
     drawdown = (close_prices - rolling_max) / rolling_max * 100  # as %
 
-    # ── Momentum signals ─────────────────────────────────────────────────────
+    # Momentum signals ─────────────────────────────────────────────────────
     momentum_rows = []
     for ticker, df in ticker_dfs_clean.items():
         latest = df.dropna(subset=["close", "MA_3", "MA_6"]).iloc[-1]
@@ -189,21 +183,20 @@ def compute_analytics(ticker_dfs_clean: dict, rf: float, periods: int) -> dict:
             "MA_6":          round(latest["MA_6"],  2),
             "Above MA3":     above_ma3,
             "Above MA6":     above_ma6,
-            "Signal":        signal,
-        })
+            "Signal":        signal,})
 
     momentum = pd.DataFrame(momentum_rows).set_index("Ticker")
 
-    # ── Correlation matrix ────────────────────────────────────────────────────
+    # Correlation matrix ────────────────────────────────────────────────────
     correlation = returns.corr().round(4)
 
-    # ── Risk / Return summary ─────────────────────────────────────────────────
+    # Risk / Return summary ─────────────────────────────────────────────────
     ann_return = returns.mean() * periods
     ann_vol    = returns.std()  * np.sqrt(periods)
     sharpe     = (ann_return - rf) / ann_vol
     max_dd     = drawdown.min()
 
-    # ── Beta vs ^GSPC ─────────────────────────────────────────────────────────
+    # Beta vs ^GSPC ─────────────────────────────────────────────────────────
     # Beta = Cov(asset, benchmark) / Var(benchmark)
     # Uses full-period returns; ^GSPC must be in the ticker set
     betas = {}
@@ -234,8 +227,7 @@ def compute_analytics(ticker_dfs_clean: dict, rf: float, periods: int) -> dict:
             tracking_error  = active_returns.std() * np.sqrt(periods)
             active_ann      = active_returns.mean() * periods
             info_ratios[ticker] = round(
-                active_ann / tracking_error if tracking_error != 0 else np.nan, 3
-            )
+                active_ann / tracking_error if tracking_error != 0 else np.nan, 3)
     else:
         log.warning("^GSPC not in tickers — beta and IR skipped.")
         for ticker in returns.columns:
@@ -248,23 +240,21 @@ def compute_analytics(ticker_dfs_clean: dict, rf: float, periods: int) -> dict:
         "Sharpe Ratio":          sharpe.round(3),
         "Beta (vs S&P 500)":     pd.Series(betas),
         "Information Ratio":     pd.Series(info_ratios),
-        "Max Drawdown (%)":      max_dd.round(2),
-    })
+        "Max Drawdown (%)":      max_dd.round(2),})
 
     return {
         "rolling_sharpe": rolling_sharpe.round(3),
         "drawdown":        drawdown.round(2),
         "momentum":        momentum,
         "correlation":     correlation,
-        "risk_return":     risk_return,
-    }
+        "risk_return":     risk_return,}
 
 
 analytics = compute_analytics(ticker_dfs_clean, RISK_FREE_RATE, PERIODS_PER_YEAR)
 
-# ─────────────────────────────────────────────
-# 4. EXCEL OUTPUT
-# ─────────────────────────────────────────────
+
+# 4. EXCEL OUTPUT─────────────────────────────────────────────
+
 log.info("Building workbook ...")
 
 # Always start from a fresh workbook — loading an existing file risks
@@ -284,7 +274,8 @@ def get_or_create_sheet(wb, name, first=False):
     return ws
 
 
-# ── Sheet 1: Raw Data ──────────────────────────────────────────────────────
+# Sheet 1: Raw Data ──────────────────────────────────────────────────────
+
 ws_raw = get_or_create_sheet(wb, "Raw Data", first=True)
 row = 1
 
@@ -302,7 +293,8 @@ for ticker, df in ticker_dfs.items():
     row += 2
 
 
-# ── Sheet 2: Cleaned Data ─────────────────────────────────────────────────
+# Sheet 2: Cleaned Data ─────────────────────────────────────────────────
+
 ws_clean = get_or_create_sheet(wb, "Cleaned Data")
 row = 1
 
@@ -321,7 +313,8 @@ for ticker, df in ticker_dfs_clean.items():
     row += 2
 
 
-# ── Sheet 3: Summary Stats ────────────────────────────────────────────────
+# Sheet 3: Summary Stats ────────────────────────────────────────────────
+
 ws_summary = get_or_create_sheet(wb, "Summary Stats")
 
 for c, h in enumerate(["Ticker", "Mean Close", "Std Dev Close",
@@ -343,7 +336,8 @@ for row_num, ticker in enumerate(ticker_dfs, start=2):
     ws_summary.cell(row=row_num, column=6).value = round(pct_filled, 2)
 
 
-# ── Sheet 4: Change Log ───────────────────────────────────────────────────
+# Sheet 4: Change Log ───────────────────────────────────────────────────
+
 ws_log = get_or_create_sheet(wb, "Change Log")
 
 for c, h in enumerate(["Ticker", "Duplicate Rows Removed", "Missing Values Before",
@@ -361,7 +355,8 @@ for row_num, ticker in enumerate(ticker_dfs, start=2):
     ws_log.cell(row=row_num, column=5).value = int(clean.filter(like="_outlier").sum().sum())
 
 
-# ── Sheet 5: Analytics ───────────────────────────────────────────────────
+# Sheet 5: Analytics ───────────────────────────────────────────────────
+
 ws_analytics = get_or_create_sheet(wb, "Analytics")
 r = 1
 
@@ -408,7 +403,7 @@ drawdown_out.index.name = "Date"
 r = write_section(ws_analytics, "── Drawdown (% from peak)", drawdown_out, r)
 
 
-# ── Sheet 6: Charts data table (openpyxl) + Charts file (xlsxwriter) ────
+# Sheet 6: Charts data table (openpyxl) + Charts file (xlsxwriter) ────
 # openpyxl's chart XML causes Excel repair warnings on Mac/Windows.
 # Strategy: write chart DATA into the main workbook (Charts sheet),
 # and write the actual charts into a companion _charts.xlsx via xlsxwriter
@@ -419,7 +414,8 @@ dates_index  = ticker_dfs_clean[tickers_list[0]].index
 n_dates      = len(dates_index)
 dd_df        = analytics["drawdown"]
 
-# ── Data-only Charts sheet in main workbook ───────────────────────────────
+# Data-only Charts sheet in main workbook ───────────────────────────────
+
 if "Charts" in wb.sheetnames:
     del wb["Charts"]
 ws_charts = wb.create_sheet("Charts")
@@ -434,8 +430,7 @@ for r, date in enumerate(dates_index, start=3):
     for c, ticker in enumerate(tickers_list, start=2):
         val = ticker_dfs_clean[ticker]["close_norm"].get(date, None)
         ws_charts.cell(row=r, column=c).value = (
-            round(float(val), 2) if val is not None and not pd.isna(val) else None
-        )
+            round(float(val), 2) if val is not None and not pd.isna(val) else None)
 
 norm_end_row = 2 + n_dates
 dd_hdr_row   = norm_end_row + 3
@@ -450,10 +445,9 @@ for r, date in enumerate(dates_index, start=dd_hdr_row + 2):
     for c, ticker in enumerate(tickers_list, start=2):
         val = dd_df[ticker].get(date, None)
         ws_charts.cell(row=r, column=c).value = (
-            round(float(val), 2) if val is not None and not pd.isna(val) else None
-        )
+            round(float(val), 2) if val is not None and not pd.isna(val) else None)
 
-# ── Companion charts file via xlsxwriter ─────────────────────────────────
+# Companion charts file via xlsxwriter ─────────────────────────────────
 import xlsxwriter
 
 CHARTS_FILE = OUTPUT_FILE.replace(".xlsx", "_charts.xlsx")
@@ -461,6 +455,7 @@ xw  = xlsxwriter.Workbook(CHARTS_FILE)
 xws = xw.add_worksheet("Charts")
 
 # Write normalised price data (0-indexed)
+
 xws.write(0, 0, "Date")
 for c, ticker in enumerate(tickers_list, start=1):
     xws.write(0, c, ticker)
@@ -500,8 +495,7 @@ for c, ticker in enumerate(tickers_list, start=1):
         "name":       ["Charts", 0, c],
         "categories": ["Charts", 1, 0, norm_last, 0],
         "values":     ["Charts", 1, c, norm_last, c],
-        "line":       {"width": 1.5},
-    })
+        "line":       {"width": 1.5},})
 xws.insert_chart(0, chart_col, c1)
 
 # Chart 2 — Drawdown
@@ -516,16 +510,15 @@ for c, ticker in enumerate(tickers_list, start=1):
         "name":       ["Charts", dd_hdr, c],
         "categories": ["Charts", dd_hdr + 1, 0, dd_last, 0],
         "values":     ["Charts", dd_hdr + 1, c, dd_last, c],
-        "line":       {"width": 1.5},
-    })
+        "line":       {"width": 1.5},})
 xws.insert_chart(dd_hdr, chart_col, c2)
 
 xw.close()
 log.info("Charts saved → %s", CHARTS_FILE)
 
-# ─────────────────────────────────────────────
-# 5. FORMATTING
-# ─────────────────────────────────────────────
+
+# 5. FORMATTING─────────────────────────────────────────────
+
 def format_workbook(wb: Workbook) -> None:
     header_fill = PatternFill(fill_type="solid", start_color="4F81BD", end_color="4F81BD")
     header_font = Font(bold=True, color="FFFFFF")
@@ -583,7 +576,7 @@ def format_workbook(wb: Workbook) -> None:
 
         ws.auto_filter.ref = ws.dimensions
 
-        # ── Number formatting ──────────────────────────────────────────────
+        # Number formatting ──────────────────────────────────────────────
         # Read header row to map column letter → column name
         header_row = None
         for row in ws.iter_rows(max_row=20):
@@ -625,9 +618,8 @@ def format_workbook(wb: Workbook) -> None:
 format_workbook(wb)
 wb["Charts"].sheet_properties.tabColor = "FF8C00"
 
-# ─────────────────────────────────────────────
-# 6. SAVE
-# ─────────────────────────────────────────────
+# 6. SAVE─────────────────────────────────────────────
+
 wb.save(OUTPUT_FILE)
 log.info("Saved → %s", OUTPUT_FILE)
 log.info("Open %s for interactive charts (no repair warnings)", OUTPUT_FILE.replace('.xlsx', '_charts.xlsx'))
