@@ -6,13 +6,16 @@ Built during the final year of a BSc Economics degree to demonstrate applied dat
 
 ---
 
-## What it does
+## Output files
 
-1. Downloads monthly OHLCV (Open, High, Low, Close, Volume) data for a configurable set of tickers via the `yfinance` API
-2. Runs an automated cleaning pipeline — deduplication, missing value imputation, OHLC validation, and z-score outlier detection
-3. Computes derived metrics — normalised price, simple and log returns, moving averages
-4. Calculates a full analytics suite — Sharpe ratio, beta, information ratio, drawdown, momentum signals, and cross-asset correlations
-5. Exports a colour-coded, formatted Excel workbook across five sheets
+Running the script produces two files:
+
+| File | Contents |
+|---|---|
+| `Financial_Data_Report.xlsx` | All data sheets — raw, cleaned, summary stats, change log, analytics, and chart data tables |
+| `Financial_Data_Report_charts.xlsx` | Interactive line charts — normalised price trend and drawdown from peak |
+
+Both files update automatically when tickers are added or removed from the config.
 
 ---
 
@@ -21,21 +24,23 @@ Built during the final year of a BSc Economics degree to demonstrate applied dat
 ### 1. Install dependencies
 
 ```bash
-pip install yfinance pandas numpy openpyxl
+pip install yfinance pandas numpy openpyxl xlsxwriter
 ```
 
 ### 2. Configure
 
-Edit the config block at the top:
+Edit the config block at the top of `analyser.py`:
 
 ```python
-TICKERS     = ["^GSPC", "AAPL", "MSFT", "NVDA", "AMD"]  # any valid Yahoo Finance tickers
-START_DATE  = "2024-01-01"
-END_DATE    = "2026-05-31"
-INTERVAL    = "1mo"    # 1d, 1wk, or 1mo
-OUTPUT_FILE = "Financial_Data_Report.xlsx"
-RISK_FREE_RATE = 0.05  # annualised, used for Sharpe and IR calculations
+TICKERS        = ["^GSPC", "AAPL", "MSFT", "NVDA", "AMD", "^VIX"]
+START_DATE     = "2024-01-01"
+END_DATE       = "2026-05-31"
+INTERVAL       = "1mo"       # 1d, 1wk, or 1mo
+OUTPUT_FILE    = "Financial_Data_Report.xlsx"
+RISK_FREE_RATE = 0.05        # annualised, used for Sharpe and IR calculations
 ```
+
+Any valid Yahoo Finance ticker can be added to `TICKERS`. All sheets and charts update automatically.
 
 ### 3. Run
 
@@ -43,49 +48,50 @@ RISK_FREE_RATE = 0.05  # annualised, used for Sharpe and IR calculations
 python analyser.py
 ```
 
-Output: `Financial_Data_Report.xlsx` saved in the same directory.
+> **Note:** delete any existing `Financial_Data_Report.xlsx` before the first run to avoid carrying forward stale data.
 
 ---
 
-## Output workbook
+## Workbook sheets
 
 | Sheet | Tab colour | Contents |
 |---|---|---|
 | **Raw Data** | Grey | Unmodified OHLCV data as downloaded from Yahoo Finance |
-| **Cleaned Data** | Green | Post-pipeline data including all derived columns; price errors and outliers highlighted in red |
+| **Cleaned Data** | Green | Post-pipeline data with derived columns; price errors and outliers highlighted in red |
 | **Summary Stats** | Blue | Mean, std dev, min, max close price and % of missing values filled per ticker |
-| **Change Log** | Red | Audit trail — duplicates removed, missing values before/after cleaning, outliers detected |
-| **Analytics** | Purple | Full risk/return summary, momentum signals, correlation matrix, rolling Sharpe, and drawdown series |
+| **Change Log** | Red | Audit trail — duplicates removed, missing values before/after, outliers flagged |
+| **Analytics** | Purple | Full risk/return table, momentum signals, correlation matrix, rolling Sharpe, drawdown series |
+| **Charts** | Orange | Source data tables used to build the companion charts file |
 
 ---
 
 ## Cleaning pipeline
 
-Steps are applied in order to each ticker independently.
+Applied independently to each ticker in order.
 
 ### 1. Standardise date index
-Converts the index to `datetime` and sorts chronologically, ensuring consistent time ordering across all series before any calculation is run.
+Converts the index to `datetime` and sorts chronologically, ensuring consistent time ordering before any calculation is run.
 
 ### 2. Remove duplicates
-Drops rows with duplicate date indices (keeping the first occurrence). Prevents double-counting in return calculations.
+Drops rows with duplicate date indices, keeping the first occurrence. Prevents double-counting in return calculations.
 
 ### 3. Lowercase column names
 Standardises all headers to lowercase (`Open` → `open`) for consistent downstream access.
 
 ### 4. Fill missing values
-Forward-fills first (`ffill`) — carrying the last known value forward, which is the correct convention for market data over non-trading periods. Back-fills (`bfill`) any remaining gaps at the start of the series.
+Forward-fills first (`ffill`) — carrying the last known value forward, the correct convention for market data over non-trading periods. Back-fills (`bfill`) any remaining gaps at the start of the series.
 
 ### 5. OHLC relationship validation
-Flags rows where price relationships are logically inconsistent — e.g. `High < Close`, `Low > Open`, `High < Low`, or negative volume. Recorded in a `price_error` boolean column and highlighted red in Excel. Flagged rather than silently dropped so data quality issues remain visible.
+Flags rows where price relationships are logically inconsistent — e.g. `High < Close`, `Low > Open`, `High < Low`, or negative volume. Recorded in a `price_error` boolean column and highlighted red in Excel. Flagged rather than dropped so data quality issues remain visible.
 
 ### 6. Outlier detection (z-score)
-For each OHLCV column, flags values more than 3 standard deviations from the mean in a corresponding `*_outlier` column. Outliers in financial data can be genuine extreme events rather than errors, so they are flagged rather than removed.
+For each OHLCV column, flags values more than 3 standard deviations from the mean in a `*_outlier` boolean column. Outliers in financial data can be genuine extreme events, so they are flagged rather than removed.
 
 ---
 
 ## Analytics
 
-All analytics use the full cleaned return series. ^GSPC (S&P 500) is the benchmark for beta and information ratio calculations.
+All metrics use the full cleaned return series. `^GSPC` (S&P 500) is the benchmark for beta and information ratio. All return and volatility figures are annualised from monthly data (×12 and ×√12 respectively).
 
 ### Risk & Return Summary
 
@@ -93,24 +99,37 @@ All analytics use the full cleaned return series. ^GSPC (S&P 500) is the benchma
 |---|---|
 | Annualised Return (%) | Mean monthly return scaled to annual |
 | Annualised Vol (%) | Monthly return std dev scaled to annual (×√12) |
-| Sharpe Ratio | Excess return over the risk-free rate per unit of total volatility |
-| Beta (vs S&P 500) | `Cov(asset, S&P) / Var(S&P)` — sensitivity to broad market moves |
-| Information Ratio | Active return vs S&P 500 divided by tracking error — consistency of outperformance |
+| Sharpe Ratio | Excess return over the risk-free rate per unit of total volatility — measures absolute risk-adjusted performance |
+| Beta (vs S&P 500) | `Cov(asset, S&P) / Var(S&P)` — sensitivity to broad market moves. >1 means more volatile than the index; <1 means more defensive |
+| Information Ratio | Active return vs S&P 500 divided by tracking error — measures consistency of outperformance relative to the benchmark |
 | Max Drawdown (%) | Largest peak-to-trough decline over the period |
 
-**Note on Sharpe vs Information Ratio:** Sharpe measures absolute risk-adjusted return (relevant for hedge funds and absolute return strategies). IR measures return relative to a benchmark (relevant for long-only funds judged against an index). Both are included because different types of fund use different metrics.
+**Sharpe vs Information Ratio:** Sharpe measures absolute risk-adjusted return and is the standard metric for hedge funds and absolute return strategies. IR measures performance relative to a benchmark and is how long-only fund managers are typically evaluated. Both are included because different mandates use different metrics.
 
 ### Momentum Signals
-For the latest period, flags whether each asset is trading above its 3-month and 6-month moving averages. Outputs a BULLISH / BEARISH / MIXED signal per ticker.
+For the latest period, flags whether each asset is trading above its 3-month and 6-month moving averages. Outputs BULLISH / BEARISH / MIXED per ticker.
 
-### Correlation Matrix
-Pairwise return correlations across all tickers. High correlations reduce diversification benefit — an asset with low correlation to the rest of the portfolio adds more risk-reduction value than a high-returning but highly correlated asset.
+### Return Correlation Matrix
+Pairwise return correlations across all tickers. High correlations reduce diversification benefit — an asset with low correlation to the rest of the portfolio contributes more risk-reduction value regardless of its individual return.
 
 ### Rolling 6-Month Sharpe Ratio
-Tracks how risk-adjusted performance has evolved over time, rather than collapsing the entire period into a single figure. Useful for identifying periods of sustained outperformance or drawdown.
+Tracks how risk-adjusted performance has evolved over time rather than collapsing the period into a single figure. Useful for identifying whether outperformance was sustained or concentrated in one period.
 
 ### Drawdown Series
-Month-by-month percentage decline from each asset's previous peak. Max drawdown is a standard institutional risk metric.
+Month-by-month percentage decline from each asset's previous peak. Max drawdown is a standard institutional risk metric used to assess downside exposure.
+
+---
+
+## Charts (companion file)
+
+The `_charts.xlsx` file is generated using `xlsxwriter` rather than `openpyxl` to avoid Excel repair warnings caused by openpyxl's chart XML implementation.
+
+| Chart | Description |
+|---|---|
+| Normalised Price Trend | All tickers indexed to 100 at the start date — enables direct comparison across assets with very different price levels |
+| Drawdown from Peak | Peak-to-trough decline for each asset over time — visually shows the risk profile of each position |
+
+Both charts include a line per ticker and update automatically when the ticker list changes.
 
 ---
 
@@ -136,6 +155,6 @@ Month-by-month percentage decline from each asset's previous peak. Max drawdown 
 | `pandas` | Data manipulation and cleaning |
 | `numpy` | Numerical operations — z-scores, covariance, log returns |
 | `openpyxl` | Excel workbook creation, formatting, and number formats |
+| `xlsxwriter` | Chart generation — produces clean Excel-compatible chart XML |
 
 ---
-
