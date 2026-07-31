@@ -1,6 +1,6 @@
 # Automated Equity Analyser
 
-A self-directed Python project that pulls live market data from Yahoo Finance, runs an automated cleaning and validation pipeline, and exports a formatted multi-sheet Excel report with risk, return, and momentum analytics.
+A small Python project that pulls live market data from Yahoo Finance, runs an automated cleaning and validation pipeline, and exports a formatted multi-sheet Excel report with risk, return, and momentum analytics.
 
 ---
 
