@@ -2,8 +2,6 @@
 
 A self-directed Python project that pulls live market data from Yahoo Finance, runs an automated cleaning and validation pipeline, and exports a formatted multi-sheet Excel report with risk, return, and momentum analytics.
 
-Built during the final year of a BSc Economics degree to demonstrate applied data and finance skills.
-
 ---
 
 ## Output files
